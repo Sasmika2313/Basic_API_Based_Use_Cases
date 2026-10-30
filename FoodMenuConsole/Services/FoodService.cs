@@ -1,15 +1,24 @@
+using FoodMenuConsole.Data;
 using FoodMenuConsole.Models;
 using FoodMenuConsole.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace FoodMenuConsole.Services
 {
     public class FoodService
     {
         private readonly IFoodRepository _repository;
+        private readonly IAuditLogRepository _auditRepository;
+        private readonly AppDbContext _context;
 
-        public FoodService(IFoodRepository repository)
+        public FoodService(
+            IFoodRepository repository,
+            IAuditLogRepository auditRepository,
+            AppDbContext context)
         {
             _repository = repository;
+            _auditRepository = auditRepository;
+            _context = context;
         }
 
         public List<FoodItem> GetAll()
@@ -34,45 +43,146 @@ namespace FoodMenuConsole.Services
             return _repository.GetByCategory(category);
         }
 
+        public List<AuditLog> GetAuditLogs()
+        {
+            return _auditRepository.GetAll();
+        }
+
         public bool Add(FoodItem item, out string message)
         {
             if (!Validate(item, out message))
+            {
                 return false;
+            }
 
-            _repository.Add(item);
-            message = "Food item added successfully.";
-            return true;
+            using var transaction = _context.Database.BeginTransaction();
+
+            try
+            {
+                _repository.Add(item);
+
+                AuditLog auditLog = new AuditLog
+                {
+                    Action = "CREATE",
+                    EntityName = "FoodItem",
+                    EntityId = item.Id,
+                    Details = $"Added food item: {item.Name}"
+                };
+
+                _auditRepository.Add(auditLog);
+
+                transaction.Commit();
+
+                message = "Food item added successfully.";
+                return true;
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
 
         public bool Update(FoodItem item, out string message)
         {
             if (!Validate(item, out message))
+            {
                 return false;
+            }
 
-            if (_repository.GetById(item.Id) == null)
+            FoodItem? existing = _repository.GetById(item.Id);
+
+            if (existing == null)
             {
                 message = "Food item not found.";
                 return false;
             }
 
-            bool updated = _repository.Update(item);
+            using var transaction = _context.Database.BeginTransaction();
 
-            message = updated
-                ? "Food item updated successfully."
-                : "Could not update food item.";
+            try
+            {
+                bool updated = _repository.Update(item);
 
-            return updated;
+                if (!updated)
+                {
+                    transaction.Rollback();
+                    message = "Food item not found.";
+                    return false;
+                }
+
+                AuditLog auditLog = new AuditLog
+                {
+                    Action = "UPDATE",
+                    EntityName = "FoodItem",
+                    EntityId = item.Id,
+                    Details =
+                        $"Updated food item '{existing.Name}' to '{item.Name}'. " +
+                        $"Price: {existing.Price:F2} -> {item.Price:F2}. " +
+                        $"Category: {existing.Category} -> {item.Category}. " +
+                        $"Availability: {existing.IsAvailable} -> {item.IsAvailable}."
+                };
+
+                _auditRepository.Add(auditLog);
+
+                transaction.Commit();
+
+                message = "Food item updated successfully.";
+                return true;
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
 
         public bool Delete(int id, out string message)
         {
-            bool deleted = _repository.Delete(id);
+            FoodItem? existing = _repository.GetById(id);
 
-            message = deleted
-                ? "Food item deleted successfully."
-                : "Food item not found.";
+            if (existing == null)
+            {
+                message = "Food item not found.";
+                return false;
+            }
 
-            return deleted;
+            using var transaction = _context.Database.BeginTransaction();
+
+            try
+            {
+                bool deleted = _repository.Delete(id);
+
+                if (!deleted)
+                {
+                    transaction.Rollback();
+                    message = "Food item not found.";
+                    return false;
+                }
+
+                AuditLog auditLog = new AuditLog
+                {
+                    Action = "DELETE",
+                    EntityName = "FoodItem",
+                    EntityId = existing.Id,
+                    Details =
+                        $"Deleted food item: {existing.Name}. " +
+                        $"Category: {existing.Category}. " +
+                        $"Price: {existing.Price:F2}."
+                };
+
+                _auditRepository.Add(auditLog);
+
+                transaction.Commit();
+
+                message = "Food item deleted successfully.";
+                return true;
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
 
         private bool Validate(FoodItem item, out string message)
@@ -94,7 +204,9 @@ namespace FoodMenuConsole.Services
 
             string? category = FoodCategory.GetAll()
                 .FirstOrDefault(c =>
-                    c.Equals(item.Category, StringComparison.OrdinalIgnoreCase));
+                    c.Equals(
+                        item.Category,
+                        StringComparison.OrdinalIgnoreCase));
 
             if (category == null)
             {

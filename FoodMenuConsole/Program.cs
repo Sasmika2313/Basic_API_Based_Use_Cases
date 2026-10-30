@@ -18,7 +18,15 @@ try
     context.Database.Migrate();
 
     IFoodRepository repository = new FoodRepository(context);
-    FoodService service = new FoodService(repository);
+
+    IAuditLogRepository auditRepository =
+        new AuditLogRepository(context);
+
+    FoodService service = new FoodService(
+        repository,
+        auditRepository,
+        context);
+
     FoodMenu menu = new FoodMenu(service);
 
     menu.Run();

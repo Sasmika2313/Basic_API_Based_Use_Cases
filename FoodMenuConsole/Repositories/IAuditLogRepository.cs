@@ -1,8 +1,11 @@
-﻿using System;
+﻿using FoodMenuConsole.Models;
 
-public class Class1
+namespace FoodMenuConsole.Repositories
 {
-	public Class1()
-	{
-	}
+    public interface IAuditLogRepository
+    {
+        void Add(AuditLog auditLog);
+
+        List<AuditLog> GetAll();
+    }
 }

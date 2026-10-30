@@ -12,6 +12,8 @@ namespace FoodMenuConsole.Data
 
         public DbSet<FoodItem> FoodItems { get; set; } = null!;
 
+        public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -19,6 +21,13 @@ namespace FoodMenuConsole.Data
             modelBuilder.Entity<FoodItem>()
                 .Property(f => f.Price)
                 .HasPrecision(11, 2);
+
+            modelBuilder.Entity<AuditLog>()
+                .Property(a => a.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(a => a.CreatedAt);
         }
     }
 }

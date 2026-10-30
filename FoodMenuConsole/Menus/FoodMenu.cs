@@ -29,6 +29,7 @@ namespace FoodMenuConsole.Menus
                 Console.WriteLine("5. Update Food Item");
                 Console.WriteLine("6. Delete Food Item");
                 Console.WriteLine("7. View Available Food Items");
+                Console.WriteLine("8. View Audit Logs");
                 Console.WriteLine("0. Exit");
 
                 int choice = ConsoleHelper.ReadInt("\nEnter your choice: ");
@@ -63,6 +64,10 @@ namespace FoodMenuConsole.Menus
 
                         case 7:
                             ShowFoods(_service.GetAvailable());
+                            break;
+
+                        case 8:
+                            ShowAuditLogs();
                             break;
 
                         case 0:
@@ -104,6 +109,33 @@ namespace FoodMenuConsole.Menus
                 Console.WriteLine(message);
             else
                 Console.WriteLine(message);
+        }
+
+        private void ShowAuditLogs()
+        {
+            List<AuditLog> logs = _service.GetAuditLogs();
+
+            Console.WriteLine("\n===== AUDIT LOG HISTORY =====");
+
+            if (logs.Count == 0)
+            {
+                Console.WriteLine("No audit records found.");
+                return;
+            }
+
+            foreach (AuditLog log in logs)
+            {
+                Console.WriteLine("--------------------------------");
+                Console.WriteLine($"Audit ID: {log.Id}");
+                Console.WriteLine($"Action: {log.Action}");
+                Console.WriteLine($"Entity: {log.EntityName}");
+                Console.WriteLine($"Entity ID: {log.EntityId}");
+                Console.WriteLine($"Details: {log.Details}");
+                Console.WriteLine(
+                    $"Time (UTC): {log.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+            }
+
+            Console.WriteLine("--------------------------------");
         }
 
         private void SearchFood()
